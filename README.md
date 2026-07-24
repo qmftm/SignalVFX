@@ -88,6 +88,10 @@ SignalVFX/
 SignalVFX는 **모델과 애니메이션을 이름으로 참조만** 하고, 지오메트리·애니메이션 재생·**리소스팩 자동 생성/호스팅**은 BetterModel이 담당합니다.
 모델 제작은 BlockBench에서, 스킬 로직은 SignalVFX에서 — 관심사가 깔끔히 분리됩니다.
 
+> 에디터에서 **BlockBench `.bbmodel` 파일을 불러오면** `modelId`(파일명 기준)와 애니메이션 이름 목록을
+> 자동으로 읽어 드롭다운에 채웁니다. 3D 지오메트리는 렌더링하지 않고, 참조에 필요한 메타데이터만 추출합니다.
+> (BetterModel은 모델을 파일명으로 등록하므로 `modelId`는 확장자를 뺀 파일명입니다.)
+
 | 필드 | 의미 |
 |---|---|
 | `modelId` | 등록된 BetterModel 모델 id(`.bbmodel` 이름) |
@@ -172,6 +176,7 @@ SignalVFX는 **모델과 애니메이션을 이름으로 참조만** 하고, 지
 ### 6.2 ✅ 2단계 — 에디터 (`editor`) *(1차 완료)*
 - 탭 3개: **Skill & Cast** / **Visual (VFX)** / **Damage**
 - 비주얼 탭: **BetterModel ↔ 리소스팩 ↔ 디스플레이 엔티티** 3방향 토글(전환 시 공통 필드 보존)
+- BetterModel 폼: **`.bbmodel` 불러오기** → `modelId`(파일명) 자동 설정 + 애니메이션 이름 드롭다운 자동 채움
 - 데미지 탭: **탑다운 캔버스**에서 포인트를 드래그 배치하고 범위(반경) 시각화, 속성 폼 편집
 - 파일 New/Open/Save/Save As, 변경(dirty) 표시
 - 향후: keyframe 타임라인 UI, VFX 실시간 미리보기, 아이템/블록 키 자동완성

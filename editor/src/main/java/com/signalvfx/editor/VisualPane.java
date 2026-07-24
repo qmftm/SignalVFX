@@ -1,5 +1,6 @@
 package com.signalvfx.editor;
 
+import com.signalvfx.editor.bbmodel.BbModel;
 import com.signalvfx.model.Skill;
 import com.signalvfx.model.Vec3;
 import com.signalvfx.model.visual.Attach;
@@ -10,6 +11,9 @@ import com.signalvfx.model.visual.DisplayKind;
 import com.signalvfx.model.visual.ResourcePackVisual;
 import com.signalvfx.model.visual.Visual;
 import javafx.geometry.Insets;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
@@ -17,18 +21,27 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Editor panel for the skill's visual. The top toggle chooses between a
- * resource-pack visual (primary path) and a display-entity visual (pack-free,
- * billboard-as-custom-particle). Switching preserves the shared fields
- * (anchor, offset, duration, sound).
+ * BetterModel visual (recommended; can import a .bbmodel to fill in the model
+ * id and animation list), a resource-pack visual, and a display-entity visual
+ * (pack-free, billboard-as-custom-particle). Switching preserves the shared
+ * fields (anchor, offset, duration, sound).
  */
 final class VisualPane extends ScrollPane {
 
     private final Runnable onChange;
     private final VBox root = new VBox(8);
     private Skill skill;
+
+    /** Animation names discovered from the last imported .bbmodel, for the dropdown. */
+    private List<String> importedAnimations = new ArrayList<>();
 
     VisualPane(Runnable onChange) {
         this.onChange = onChange;
@@ -39,6 +52,7 @@ final class VisualPane extends ScrollPane {
 
     void bind(Skill skill) {
         this.skill = skill;
+        importedAnimations = new ArrayList<>();
         rebuild();
     }
 
@@ -143,14 +157,40 @@ final class VisualPane extends ScrollPane {
         GridPane grid = Fx.form();
         int r = 0;
         grid.add(header("BetterModel (server-side BlockBench model + animation)"), 0, r++, 2, 1);
+
+        Button importBtn = new Button("Import .bbmodel…");
+        importBtn.setOnAction(e -> importBbModel(v));
+        Fx.row(grid, r++, "BlockBench file", importBtn);
+
         Fx.row(grid, r++, "Model id", Fx.text(v.getModelId(), val -> {
             v.setModelId(val);
             onChange.run();
         }));
-        Fx.row(grid, r++, "Animation", Fx.text(v.getAnimation(), val -> {
-            v.setAnimation(val);
+
+        // Editable combo: pick a discovered animation, or type one by hand.
+        ComboBox<String> anim = new ComboBox<>();
+        anim.setEditable(true);
+        anim.getItems().addAll(importedAnimations);
+        anim.setValue(v.getAnimation());
+        anim.setMaxWidth(Double.MAX_VALUE);
+        anim.valueProperty().addListener((o, a, b) -> {
+            v.setAnimation(b == null ? "" : b);
             onChange.run();
-        }));
+        });
+        anim.getEditor().textProperty().addListener((o, a, b) -> {
+            v.setAnimation(b == null ? "" : b);
+            onChange.run();
+        });
+        Fx.row(grid, r++, "Animation", anim);
+
+        if (!importedAnimations.isEmpty()) {
+            Label found = new Label("Found " + importedAnimations.size() + " animation(s): "
+                    + String.join(", ", importedAnimations));
+            found.setStyle("-fx-text-fill: #6a8; -fx-padding: 0 0 4 0;");
+            found.setWrapText(true);
+            grid.add(found, 0, r++, 2, 1);
+        }
+
         Fx.row(grid, r++, "Animation speed", Fx.doubleField(v.getAnimationSpeed(), val -> {
             v.setAnimationSpeed(val);
             onChange.run();
@@ -173,6 +213,33 @@ final class VisualPane extends ScrollPane {
         note.setStyle("-fx-text-fill: #888; -fx-padding: 6 0 0 0;");
         grid.add(note, 0, r, 2, 1);
         return grid;
+    }
+
+    private void importBbModel(BetterModelVisual v) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Import BlockBench model");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("BlockBench model", "*.bbmodel"));
+        File file = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+        if (file == null) {
+            return;
+        }
+        try {
+            BbModel model = BbModel.read(file.toPath());
+            v.setModelId(model.getModelId());
+            importedAnimations = model.getAnimations();
+            if (v.getAnimation().isBlank() && !importedAnimations.isEmpty()) {
+                v.setAnimation(importedAnimations.get(0));
+            }
+            onChange.run();
+            rebuild();
+        } catch (Exception ex) {
+            Alert a = new Alert(Alert.AlertType.ERROR);
+            a.setTitle("Import failed");
+            a.setHeaderText("Could not read .bbmodel");
+            a.setContentText(ex.getMessage());
+            a.showAndWait();
+        }
     }
 
     private GridPane resourcePackForm(ResourcePackVisual v) {
