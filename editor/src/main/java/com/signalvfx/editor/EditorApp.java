@@ -34,6 +34,7 @@ public class EditorApp extends Application {
     private MetaCastPane metaPane;
     private VisualPane visualPane;
     private DamagePane damagePane;
+    private Preview3DPane previewPane;
 
     public static void main(String[] args) {
         launch(args);
@@ -43,9 +44,10 @@ public class EditorApp extends Application {
     public void start(Stage primaryStage) {
         this.stage = primaryStage;
 
-        Runnable onChange = this::markDirty;
+        Runnable onChange = this::onEdit;
+        previewPane = new Preview3DPane(skill);
         metaPane = new MetaCastPane(onChange);
-        visualPane = new VisualPane(onChange);
+        visualPane = new VisualPane(onChange, geometry -> previewPane.setGeometry(geometry));
         damagePane = new DamagePane(onChange);
 
         TabPane tabs = new TabPane();
@@ -53,7 +55,8 @@ public class EditorApp extends Application {
         tabs.getTabs().addAll(
                 new Tab("Skill & Cast", metaPane),
                 new Tab("Visual (VFX)", visualPane),
-                new Tab("Damage", damagePane));
+                new Tab("Damage", damagePane),
+                new Tab("3D Preview", previewPane));
 
         BorderPane rootPane = new BorderPane();
         rootPane.setTop(buildMenuBar());
@@ -104,6 +107,13 @@ public class EditorApp extends Application {
         metaPane.bind(skill);
         visualPane.bind(skill);
         damagePane.bind(skill);
+        previewPane.bind(skill);
+    }
+
+    /** Any edit: mark the document dirty and keep the 3D overlay in sync. */
+    private void onEdit() {
+        markDirty();
+        previewPane.refreshDamage();
     }
 
     // ---- actions -------------------------------------------------------

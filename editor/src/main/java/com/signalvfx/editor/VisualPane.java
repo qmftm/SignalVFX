@@ -1,5 +1,6 @@
 package com.signalvfx.editor;
 
+import com.signalvfx.editor.bbmodel.BbGeometry;
 import com.signalvfx.editor.bbmodel.BbModel;
 import com.signalvfx.model.Skill;
 import com.signalvfx.model.Vec3;
@@ -26,6 +27,7 @@ import javafx.stage.FileChooser;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Editor panel for the skill's visual. The top toggle chooses between a
@@ -37,14 +39,16 @@ import java.util.List;
 final class VisualPane extends ScrollPane {
 
     private final Runnable onChange;
+    private final Consumer<BbGeometry> onGeometryImported;
     private final VBox root = new VBox(8);
     private Skill skill;
 
     /** Animation names discovered from the last imported .bbmodel, for the dropdown. */
     private List<String> importedAnimations = new ArrayList<>();
 
-    VisualPane(Runnable onChange) {
+    VisualPane(Runnable onChange, Consumer<BbGeometry> onGeometryImported) {
         this.onChange = onChange;
+        this.onGeometryImported = onGeometryImported;
         setFitToWidth(true);
         root.setPadding(new Insets(10));
         setContent(root);
@@ -231,6 +235,8 @@ final class VisualPane extends ScrollPane {
             if (v.getAnimation().isBlank() && !importedAnimations.isEmpty()) {
                 v.setAnimation(importedAnimations.get(0));
             }
+            // Feed the geometry to the 3D preview so points can be placed on the model.
+            onGeometryImported.accept(BbGeometry.read(file.toPath()));
             onChange.run();
             rebuild();
         } catch (Exception ex) {
