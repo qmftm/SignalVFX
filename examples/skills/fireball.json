@@ -1,0 +1,67 @@
+{
+  "schemaVersion" : 1,
+  "id" : "fireball",
+  "name" : "Fireball",
+  "description" : "Hurls a resource-pack fireball that explodes on impact.",
+  "author" : "SignalVFX",
+  "icon" : "minecraft:fire_charge",
+  "cast" : {
+    "type" : "INSTANT",
+    "targeting" : "PROJECTILE",
+    "castTimeTicks" : 0,
+    "cooldownTicks" : 60,
+    "range" : 30.0,
+    "cost" : {
+      "type" : "MANA",
+      "amount" : 25.0,
+      "itemKey" : ""
+    }
+  },
+  "visual" : {
+    "type" : "RESOURCE_PACK",
+    "attach" : "PROJECTILE",
+    "offset" : {
+      "x" : 0.0,
+      "y" : 0.0,
+      "z" : 0.0
+    },
+    "durationTicks" : 40,
+    "soundKey" : "minecraft:entity.blaze.shoot",
+    "soundVolume" : 1.0,
+    "soundPitch" : 1.2,
+    "material" : "minecraft:paper",
+    "customModelData" : 1001,
+    "itemModel" : "signalvfx:fireball",
+    "animation" : "",
+    "scale" : 1.0
+  },
+  "damagePoints" : [ {
+    "id" : "3c1ea959",
+    "label" : "Explosion",
+    "origin" : "TARGET",
+    "offset" : {
+      "x" : 0.0,
+      "y" : 0.0,
+      "z" : 0.0
+    },
+    "shape" : {
+      "type" : "SPHERE",
+      "radius" : 3.5,
+      "halfExtents" : {
+        "x" : 2.0,
+        "y" : 2.0,
+        "z" : 2.0
+      },
+      "angle" : 45.0,
+      "length" : 5.0
+    },
+    "damage" : 12.0,
+    "delayTicks" : 0,
+    "repeatCount" : 1,
+    "repeatIntervalTicks" : 0,
+    "targetFilter" : "NOT_CASTER",
+    "knockback" : 0.8,
+    "ignoreInvulnerability" : true,
+    "potionEffects" : [ ]
+  } ]
+}
