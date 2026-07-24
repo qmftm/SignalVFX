@@ -53,6 +53,8 @@ public class EditorApp extends Application {
         // Keep damage-point selection in sync between the Damage tab and the 3D preview.
         damagePane.setOnSelectionChanged(dp -> previewPane.setSelected(dp));
         previewPane.setOnPointPicked(dp -> damagePane.select(dp));
+        // Timeline delay-marker drags mark the document dirty and refresh overlays.
+        previewPane.setOnEdit(this::onEdit);
 
         TabPane tabs = new TabPane();
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);

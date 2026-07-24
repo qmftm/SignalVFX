@@ -17,13 +17,15 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Separator;
-import javafx.scene.control.Slider;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.PhongMaterial;
@@ -31,6 +33,7 @@ import javafx.scene.shape.Box;
 import javafx.scene.shape.DrawMode;
 import javafx.scene.shape.Sphere;
 import javafx.scene.transform.Rotate;
+import javafx.scene.text.Font;
 import javafx.scene.transform.Scale;
 import javafx.scene.transform.Translate;
 import javafx.stage.FileChooser;
@@ -99,7 +102,8 @@ final class Preview3DPane extends BorderPane {
     // Animation playback controls.
     private final ComboBox<String> animSelect = new ComboBox<>();
     private final ToggleButton playButton = new ToggleButton("▶ Play");
-    private final Slider timeSlider = new Slider(0, 1, 0);
+    private final Canvas timeline = new Canvas(400, 40);
+    private final Pane timelineHolder = new Pane(timeline);
     private final Label timeLabel = new Label("tick 0 / 0");
 
     private final Map<String, BoneHandle> boneHandles = new HashMap<>();
@@ -109,10 +113,13 @@ final class Preview3DPane extends BorderPane {
     private BbGeometry geometry;
     private DamagePoint selectedPoint;
     private Consumer<DamagePoint> onPointPicked;
+    private Runnable onEdit;
     private BbGeometry.Animation currentAnim;
     private double currentTime;          // seconds
+    private double timelineLength = 1;   // seconds mapped across the timeline
     private long lastNanos;
-    private boolean sliderDriven;
+    private DamagePoint draggingMarker;
+    private boolean scrubbing;
 
     private final AnimationTimer timer = new AnimationTimer() {
         @Override
@@ -173,14 +180,21 @@ final class Preview3DPane extends BorderPane {
         animSelect.setPrefWidth(180);
         animSelect.valueProperty().addListener((o, a, b) -> selectAnimation(b));
         playButton.setOnAction(e -> togglePlay(playButton.isSelected()));
-        timeSlider.valueProperty().addListener((o, a, b) -> {
-            if (!sliderDriven) {
-                scrubTo(b.doubleValue());
-            }
+
+        timeline.setHeight(40);
+        timeline.widthProperty().bind(timelineHolder.widthProperty());
+        timeline.widthProperty().addListener((o, a, b) -> redrawTimeline());
+        timelineHolder.setMinWidth(140);
+        timelineHolder.setPrefHeight(40);
+        timeline.setOnMousePressed(this::onTimelinePress);
+        timeline.setOnMouseDragged(this::onTimelineDrag);
+        timeline.setOnMouseReleased(e -> {
+            draggingMarker = null;
+            scrubbing = false;
         });
-        HBox.setHgrow(timeSlider, Priority.ALWAYS);
-        timeSlider.setMaxWidth(Double.MAX_VALUE);
-        HBox row2 = new HBox(8, new Label("Animation:"), animSelect, playButton, timeSlider, timeLabel);
+        HBox.setHgrow(timelineHolder, Priority.ALWAYS);
+
+        HBox row2 = new HBox(8, new Label("Animation:"), animSelect, playButton, timelineHolder, timeLabel);
         row2.setAlignment(Pos.CENTER_LEFT);
         row2.setPadding(new Insets(6, 0, 6, 0));
         setAnimControlsEnabled(false);
@@ -205,6 +219,11 @@ final class Preview3DPane extends BorderPane {
     /** Notified when a damage volume is clicked in the 3D view. */
     void setOnPointPicked(Consumer<DamagePoint> callback) {
         this.onPointPicked = callback;
+    }
+
+    /** Notified when an edit happens here (e.g. dragging a delay marker) so the doc goes dirty. */
+    void setOnEdit(Runnable callback) {
+        this.onEdit = callback;
     }
 
     /** Highlights the given point (called when selection changes in the Damage tab). */
@@ -232,6 +251,7 @@ final class Preview3DPane extends BorderPane {
             });
             damageGroup.getChildren().add(holder);
         }
+        redrawTimeline();
     }
 
     /** Builds a translucent volume + wireframe outline + centre marker for a damage point. */
@@ -388,9 +408,8 @@ final class Preview3DPane extends BorderPane {
                 }
             }
         }
-        double length = currentAnim == null ? 1 : Math.max(currentAnim.lengthSeconds, 0.0001);
-        timeSlider.setMax(length);
-        timeSlider.setDisable(currentAnim == null);
+        timelineLength = currentAnim == null ? 1 : Math.max(currentAnim.lengthSeconds, 0.0001);
+        timeline.setDisable(false); // still usable for delay markers even in rest pose
         playButton.setDisable(currentAnim == null);
         applyPose();
     }
@@ -466,13 +485,10 @@ final class Preview3DPane extends BorderPane {
                 h.scale.setZ(scl[2]);
             }
         }
-        // Reflect time in the slider/label without re-triggering the listener.
-        sliderDriven = true;
-        timeSlider.setValue(currentTime);
-        sliderDriven = false;
         int tick = (int) Math.round(currentTime * TICKS_PER_SECOND);
         int total = currentAnim == null ? 0 : (int) Math.round(currentAnim.lengthSeconds * TICKS_PER_SECOND);
         timeLabel.setText("tick " + tick + " / " + total);
+        redrawTimeline();
     }
 
     private static double[] sample(List<BbGeometry.Keyframe> kfs, double t, double def) {
@@ -506,7 +522,107 @@ final class Preview3DPane extends BorderPane {
     private void setAnimControlsEnabled(boolean enabled) {
         animSelect.setDisable(!enabled);
         playButton.setDisable(!enabled);
-        timeSlider.setDisable(!enabled);
+    }
+
+    // ---- timeline (damage delay markers) ------------------------------
+
+    private static final double TL_PAD = 10;
+
+    /** Draws the playback playhead and a draggable marker per damage point at its delayTicks. */
+    private void redrawTimeline() {
+        double w = timeline.getWidth();
+        double h = timeline.getHeight();
+        if (w <= 0) {
+            return;
+        }
+        GraphicsContext g = timeline.getGraphicsContext2D();
+        g.clearRect(0, 0, w, h);
+        double uw = Math.max(w - 2 * TL_PAD, 1);
+        double trackTop = 24;
+        double trackBot = 34;
+
+        g.setFill(Color.web("#2a2d33"));
+        g.fillRoundRect(TL_PAD, trackTop, uw, trackBot - trackTop, 6, 6);
+
+        double totalTicks = Math.max(timelineLength * TICKS_PER_SECOND, 1);
+        g.setFont(Font.font(9));
+        for (int t = 0; t <= totalTicks + 0.001; t += 5) {
+            double x = TL_PAD + (t / totalTicks) * uw;
+            g.setStroke(Color.web("#3a3e45"));
+            g.setLineWidth(1);
+            g.strokeLine(x, trackTop, x, trackBot);
+            if (t % 10 == 0) {
+                g.setFill(Color.web("#777"));
+                g.fillText(Integer.toString(t), x - 4, trackBot + 10);
+            }
+        }
+
+        // Playhead (current animation time).
+        double px = TL_PAD + (clamp(currentTime, 0, timelineLength) / timelineLength) * uw;
+        g.setStroke(Color.web("#7fd4ff"));
+        g.setLineWidth(2);
+        g.strokeLine(px, 2, px, trackBot);
+
+        // Damage delay markers.
+        if (skill != null) {
+            for (DamagePoint dp : skill.getDamagePoints()) {
+                double sec = dp.getDelayTicks() / TICKS_PER_SECOND;
+                boolean beyond = sec > timelineLength;
+                double mx = TL_PAD + (clamp(sec, 0, timelineLength) / timelineLength) * uw;
+                boolean sel = dp == selectedPoint;
+                g.setFill(sel ? Color.web("#ffd23f") : Color.web("#ff6b6b"));
+                g.fillPolygon(new double[]{mx - 5, mx + 5, mx}, new double[]{4, 4, 16}, 3);
+                if (sel) {
+                    g.fillText(dp.getDelayTicks() + "t" + (beyond ? " »" : ""), mx + 7, 13);
+                } else if (beyond) {
+                    g.fillText("»", mx + 7, 13);
+                }
+            }
+        }
+    }
+
+    private double xToSeconds(double x) {
+        double uw = Math.max(timeline.getWidth() - 2 * TL_PAD, 1);
+        return clamp((x - TL_PAD) / uw, 0, 1) * timelineLength;
+    }
+
+    private void onTimelinePress(MouseEvent e) {
+        draggingMarker = null;
+        scrubbing = false;
+        if (skill != null && e.getY() < 20) {
+            double uw = Math.max(timeline.getWidth() - 2 * TL_PAD, 1);
+            double best = 8;
+            DamagePoint hit = null;
+            for (DamagePoint dp : skill.getDamagePoints()) {
+                double sec = clamp(dp.getDelayTicks() / TICKS_PER_SECOND, 0, timelineLength);
+                double mx = TL_PAD + (sec / timelineLength) * uw;
+                double d = Math.abs(mx - e.getX());
+                if (d < best) {
+                    best = d;
+                    hit = dp;
+                }
+            }
+            if (hit != null) {
+                draggingMarker = hit;
+                pick(hit);
+                return;
+            }
+        }
+        scrubbing = true;
+        scrubTo(xToSeconds(e.getX()));
+    }
+
+    private void onTimelineDrag(MouseEvent e) {
+        if (draggingMarker != null) {
+            int ticks = (int) Math.round(xToSeconds(e.getX()) * TICKS_PER_SECOND);
+            draggingMarker.setDelayTicks(Math.max(ticks, 0));
+            if (onEdit != null) {
+                onEdit.run();
+            }
+            redrawTimeline();
+        } else if (scrubbing) {
+            scrubTo(xToSeconds(e.getX()));
+        }
     }
 
     // ---- camera & controls --------------------------------------------
