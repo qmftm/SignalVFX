@@ -39,6 +39,7 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * A rough 3D viewport that shows an imported BlockBench model together with the
@@ -106,6 +107,8 @@ final class Preview3DPane extends BorderPane {
     private SubScene subScene;
     private Skill skill;
     private BbGeometry geometry;
+    private DamagePoint selectedPoint;
+    private Consumer<DamagePoint> onPointPicked;
     private BbGeometry.Animation currentAnim;
     private double currentTime;          // seconds
     private long lastNanos;
@@ -162,7 +165,9 @@ final class Preview3DPane extends BorderPane {
         load.setOnAction(e -> chooseModel());
         Button fit = new Button("Reset view");
         fit.setOnAction(e -> resetView());
-        HBox row1 = new HBox(8, load, fit, status);
+        Label pickHint = new Label("· click a sphere to select it");
+        pickHint.setStyle("-fx-text-fill: #888;");
+        HBox row1 = new HBox(8, load, fit, status, pickHint);
         row1.setAlignment(Pos.CENTER_LEFT);
 
         animSelect.setPrefWidth(180);
@@ -197,20 +202,101 @@ final class Preview3DPane extends BorderPane {
         resetView();
     }
 
+    /** Notified when a damage volume is clicked in the 3D view. */
+    void setOnPointPicked(Consumer<DamagePoint> callback) {
+        this.onPointPicked = callback;
+    }
+
+    /** Highlights the given point (called when selection changes in the Damage tab). */
+    void setSelected(DamagePoint dp) {
+        if (dp != selectedPoint) {
+            selectedPoint = dp;
+            refreshDamage();
+        }
+    }
+
     void refreshDamage() {
         damageGroup.getChildren().clear();
         if (skill == null) {
             return;
         }
-        PhongMaterial mat = new PhongMaterial(Color.web("#ff5a5a", 0.28));
         for (DamagePoint dp : skill.getDamagePoints()) {
-            javafx.scene.Node node = damageNode(dp, mat);
-            if (node != null) {
-                node.setTranslateX(dp.getOffset().getX());
-                node.setTranslateY(dp.getOffset().getY());
-                node.setTranslateZ(dp.getOffset().getZ());
-                damageGroup.getChildren().add(node);
+            Group holder = new Group();
+            holder.setTranslateX(dp.getOffset().getX());
+            holder.setTranslateY(dp.getOffset().getY());
+            holder.setTranslateZ(dp.getOffset().getZ());
+            addVolume(holder, dp, dp == selectedPoint);
+            holder.setOnMouseClicked(e -> {
+                pick(dp);
+                e.consume();
+            });
+            damageGroup.getChildren().add(holder);
+        }
+    }
+
+    /** Builds a translucent volume + wireframe outline + centre marker for a damage point. */
+    private void addVolume(Group holder, DamagePoint dp, boolean selected) {
+        Color fillColor = selected ? Color.web("#ffd23f", 0.34) : Color.web("#ff5a5a", 0.18);
+        Color wireColor = selected ? Color.web("#ffe680") : Color.web("#ff8a8a");
+        PhongMaterial fill = new PhongMaterial(fillColor);
+        PhongMaterial wire = new PhongMaterial(wireColor);
+
+        Shape shape = dp.getShape();
+        switch (shape.getType()) {
+            case SPHERE -> {
+                double r = Math.max(shape.getRadius(), 0.05);
+                holder.getChildren().addAll(fillSphere(r, fill), wireSphere(r, wire));
             }
+            case BOX -> {
+                double sx = Math.max(shape.getHalfExtents().getX() * 2, 0.05);
+                double sy = Math.max(shape.getHalfExtents().getY() * 2, 0.05);
+                double sz = Math.max(shape.getHalfExtents().getZ() * 2, 0.05);
+                holder.getChildren().addAll(fillBox(sx, sy, sz, fill), wireBox(sx, sy, sz, wire));
+            }
+            case CONE -> {
+                double r = Math.max(shape.getLength(), 0.05);
+                holder.getChildren().addAll(fillSphere(r, fill), wireSphere(r, wire));
+            }
+        }
+        // Bright centre dot for precise position reference.
+        Sphere marker = new Sphere(0.12);
+        marker.setMaterial(new PhongMaterial(selected ? Color.web("#fff2b0") : Color.web("#ff5a5a")));
+        holder.getChildren().add(marker);
+    }
+
+    private Sphere fillSphere(double r, PhongMaterial mat) {
+        Sphere s = new Sphere(r);
+        s.setMaterial(mat);
+        return s;
+    }
+
+    private Sphere wireSphere(double r, PhongMaterial mat) {
+        Sphere s = new Sphere(r * 1.001);
+        s.setMaterial(mat);
+        s.setDrawMode(DrawMode.LINE);
+        s.setMouseTransparent(true); // don't block picking of the fill
+        return s;
+    }
+
+    private Box fillBox(double sx, double sy, double sz, PhongMaterial mat) {
+        Box b = new Box(sx, sy, sz);
+        b.setMaterial(mat);
+        return b;
+    }
+
+    private Box wireBox(double sx, double sy, double sz, PhongMaterial mat) {
+        Box b = new Box(sx, sy, sz);
+        b.setMaterial(mat);
+        b.setDrawMode(DrawMode.LINE);
+        b.setMouseTransparent(true);
+        return b;
+    }
+
+    private void pick(DamagePoint dp) {
+        selectedPoint = dp;
+        refreshDamage();
+        if (onPointPicked != null) {
+            onPointPicked.accept(dp);
         }
     }
 
@@ -272,31 +358,6 @@ final class Preview3DPane extends BorderPane {
                     new Rotate(c.rotation[0], c.origin[0], c.origin[1], c.origin[2], Rotate.X_AXIS));
         }
         return holder;
-    }
-
-    private javafx.scene.Node damageNode(DamagePoint dp, PhongMaterial mat) {
-        Shape shape = dp.getShape();
-        return switch (shape.getType()) {
-            case SPHERE -> {
-                Sphere s = new Sphere(Math.max(shape.getRadius(), 0.05));
-                s.setMaterial(mat);
-                yield s;
-            }
-            case BOX -> {
-                Box b = new Box(
-                        Math.max(shape.getHalfExtents().getX() * 2, 0.05),
-                        Math.max(shape.getHalfExtents().getY() * 2, 0.05),
-                        Math.max(shape.getHalfExtents().getZ() * 2, 0.05));
-                b.setMaterial(mat);
-                yield b;
-            }
-            case CONE -> {
-                Sphere s = new Sphere(Math.max(shape.getLength(), 0.05));
-                s.setMaterial(mat);
-                s.setDrawMode(DrawMode.LINE);
-                yield s;
-            }
-        };
     }
 
     // ---- animation -----------------------------------------------------

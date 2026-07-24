@@ -37,6 +37,7 @@ final class DamagePane extends HBox {
     private Skill skill;
     private DamagePoint selected;
     private DamagePoint dragging;
+    private java.util.function.Consumer<DamagePoint> onSelectionChanged;
 
     DamagePane(Runnable onChange) {
         this.onChange = onChange;
@@ -56,6 +57,9 @@ final class DamagePane extends HBox {
             selected = b;
             rebuildProperties();
             redraw();
+            if (onSelectionChanged != null) {
+                onSelectionChanged.accept(b);
+            }
         });
 
         Button add = new Button("Add");
@@ -111,6 +115,18 @@ final class DamagePane extends HBox {
         }
         rebuildProperties();
         redraw();
+    }
+
+    /** Notified whenever the selected damage point changes (may be null). */
+    void setOnSelectionChanged(java.util.function.Consumer<DamagePoint> callback) {
+        this.onSelectionChanged = callback;
+    }
+
+    /** Selects a point from outside (e.g. clicked in the 3D preview). */
+    void select(DamagePoint dp) {
+        if (dp != null && dp != selected) {
+            list.getSelectionModel().select(dp);
+        }
     }
 
     // ---- property form -------------------------------------------------

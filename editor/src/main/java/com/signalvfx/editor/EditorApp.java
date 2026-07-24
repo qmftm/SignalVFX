@@ -50,6 +50,10 @@ public class EditorApp extends Application {
         visualPane = new VisualPane(onChange, geometry -> previewPane.setGeometry(geometry));
         damagePane = new DamagePane(onChange);
 
+        // Keep damage-point selection in sync between the Damage tab and the 3D preview.
+        damagePane.setOnSelectionChanged(dp -> previewPane.setSelected(dp));
+        previewPane.setOnPointPicked(dp -> damagePane.select(dp));
+
         TabPane tabs = new TabPane();
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabs.getTabs().addAll(
