@@ -21,6 +21,7 @@
     <modules>
         <module>skill-model</module>
         <module>editor</module>
+        <module>plugin</module>
     </modules>
 
     <dependencyManagement>

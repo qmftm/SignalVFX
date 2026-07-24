@@ -37,7 +37,7 @@ SignalVFX/
 ├─ pom.xml                # 부모 POM (버전/의존성 관리)
 ├─ skill-model/           # ✅ 공유 스킬 스펙 + JSON 직렬화 (에디터·플러그인 공용)
 ├─ editor/                # ✅ JavaFX 데스크톱 에디터
-├─ plugin/                # ⏳ Paper 플러그인 (다음 단계)
+├─ plugin/                # 🟡 Paper 플러그인 (1차 구현: 로딩·발동·VFX·데미지)
 └─ examples/skills/       # 예제 스킬 JSON (meteor_slash, fireball, frost_nova)
 ```
 
@@ -192,22 +192,24 @@ SignalVFX는 **모델과 애니메이션을 이름으로 참조만** 하고, 지
 - 파일 New/Open/Save/Save As, 변경(dirty) 표시
 - 향후: 3D 뷰포트 내 직접 드래그, 애니메이션 타임라인에 데미지 마커 오버레이, 아이템/블록 키 자동완성
 
-### 6.3 ⏳ 3단계 — Paper 플러그인 (`plugin`) *(다음)*
-계획된 구성 요소:
-- **SkillRegistry** — `plugins/SignalVFX/skills/*.json` 로드/리로드(`/svfx reload`)
-- **CastManager** — 발동 트리거(아이템 우클릭/명령어), 쿨다운·코스트 체크
-- **TargetResolver** — `targeting`에 따라 엔티티/블록/투사체 타겟 산출
-- **VFX 렌더러** (`Visual` 종류별)
-  - `BetterModelRenderer` (**주력**) — BetterModel API로 모델 스폰 + named 애니메이션 재생/제거.
-    `BetterModel` → `ModelRenderer`(모델 조회) → `EntityTrackerRegistry`/`EntityTracker`(부착·애니메이션). **soft-depend**
-  - `DisplayEntityRenderer` — 디스플레이 스폰 + `baseTransform`/`keyframes` 보간, 빌보드 파티클 (의존성 0 폴백)
-  - `ResourcePackRenderer` — 모델 얹은 아이템/투사체 표시 (경량)
-- **DamageEngine** — `shape`로 대상 수집 → `targetFilter` 필터 → 데미지/넉백/포션, `delayTicks`·`repeat` 스케줄링
-- **ResourcePackHost** *(선택)* — `RESOURCE_PACK` 경로용 내장 HTTP 서빙(URL+SHA-1). BetterModel 경로는 자체 팩 생성으로 대체
-- **ManaService** — 마나 자원(선택), PlaceholderAPI 연동(선택)
+### 6.3 🟡 3단계 — Paper 플러그인 (`plugin`) *(1차 구현)*
+Paper 1.21.4(`paper-api`, provided) 대상. 구현된 구성 요소:
+- ✅ **SkillRegistry** — `plugins/SignalVFX/skills/*.json`를 에디터와 동일한 `SkillIO`로 로드/리로드, 최초 실행 시 예제 스킬 시딩
+- ✅ **SkillCommand** — `/svfx reload | list | cast <skill> [player]` (탭 완성, `signalvfx.admin` 권한)
+- ✅ **CastService** — 쿨다운(플레이어·스킬별) + 코스트(HEALTH/HUNGER/EXPERIENCE/ITEM; MANA는 외부 연동 전 무료) 처리
+- ✅ **TargetResolver** — `SELF`/`TARGET_ENTITY`/`TARGET_BLOCK` 레이트레이스 (`PROJECTILE`은 현재 히트스캔; 투사체 이동은 TODO)
+- ✅ **VFX 렌더러** (`Visual` 종류별)
+  - `DisplayEntityRenderer` — 디스플레이 스폰 + `baseTransform`/`keyframes` 보간, 빌보드·밝기·발광 (의존성 0)
+  - 리소스팩 비주얼 — 커스텀 모델 아이템을 `ItemDisplay`로 표시 (경량)
+  - `BetterModelRenderer` (**주력**, soft-depend) — 문서화된 API(`BetterModel.model(id).getOrCreate(entity).animate(clip)`)를
+    **리플렉션**으로 호출. 미설치/실패 시 디스플레이 엔티티로 자동 폴백
+- ✅ **DamageEngine** — `shape`(구/박스/콘)로 대상 수집 → `targetFilter` 필터 → 데미지/넉백/포션, `delayTicks`·`repeat` 스케줄링
+- ⏳ **ResourcePackHost** *(선택)* / **ManaService** / 진짜 투사체 이동 — 이후
 
 > **역할 분담:** BetterModel = 모델 지오메트리·애니메이션·리소스팩 자동화 / SignalVFX = 발동·타겟·데미지·에디터.
-> 겹치지 않고 상호보완적이라, 우리는 데미지/스킬 로직에 집중하고 렌더링은 검증된 엔진에 위임합니다.
+>
+> ⚠️ **검증 범위:** 플러그인은 `paper-api`에 대해 **컴파일**됩니다. 라이브 서버 실행은 아직 검증하지 않았고,
+> BetterModel 리플렉션은 정확한 API jar에 맞춰 **마무리 필요**(현재는 문서 기반 best-effort + 폴백)입니다.
 
 ### 6.4 ⏳ 4단계 — 연동 마감
 - 에디터 keyframe 타임라인 + 미리보기, BetterModel 모델/애니메이션 이름 목록 연동
@@ -221,14 +223,18 @@ SignalVFX는 **모델과 애니메이션을 이름으로 참조만** 하고, 지
 **요구:** JDK 21+, Maven 3.9+
 
 ```bash
-# 전체 빌드 (모델 + 에디터)
+# 전체 빌드 (모델 + 에디터 + 플러그인)
 mvn install
 
 # 에디터 실행 (JavaFX)
 mvn -pl editor javafx:run
-
 # 또는 패키징된 실행 jar (빌드한 OS용)
 java -jar editor/target/signalvfx-editor.jar
+
+# 플러그인 jar: plugin/target/SignalVFX.jar → 서버 plugins/ 에 넣기
+#   /svfx list                 로 로드된 스킬 확인
+#   /svfx cast example_nova     로 즉시 시전 (최초 실행 시 예제 스킬 자동 생성)
+#   에디터로 만든 *.json 을 plugins/SignalVFX/skills/ 에 넣고 /svfx reload
 ```
 
 > JavaFX 네이티브는 OS별로 다릅니다. POM이 mac/win/linux를 자동 감지하며,
@@ -246,4 +252,5 @@ java -jar editor/target/signalvfx-editor.jar
 - ✅ 공유 스킬 스펙 + JSON 입출력 (`skill-model`) — BetterModel/리소스팩/디스플레이 3종 비주얼
 - ✅ 데스크톱 에디터 1차 (`editor`) — 4개 탭, 3방향 비주얼 토글, 데미지 캔버스 + **3D 모델 미리보기**(데미지 볼륨 오버레이)
 - ✅ 예제 스킬 3종 + 라운드트립 검증
-- ⏳ Paper 플러그인 (실행 엔진 · VFX 렌더 · 데미지 · **BetterModel 연계**) — 다음 단계
+- 🟡 Paper 플러그인 1차 (`plugin`) — 스킬 로딩/리로드, `/svfx` 명령, 발동·쿨다운·코스트, 타겟팅,
+  데미지 엔진, 디스플레이 엔티티 VFX, BetterModel 리플렉션 연동(폴백). *컴파일 검증 완료, 라이브 실행·BetterModel API 마무리 남음*

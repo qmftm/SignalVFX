@@ -1,0 +1,124 @@
+{
+  "schemaVersion" : 1,
+  "id" : "example_nova",
+  "name" : "Example Nova",
+  "description" : "Dependency-free display-entity burst that damages nearby enemies. Cast with /svfx cast example_nova.",
+  "author" : "SignalVFX",
+  "icon" : "minecraft:snowball",
+  "cast" : {
+    "type" : "INSTANT",
+    "targeting" : "SELF",
+    "castTimeTicks" : 0,
+    "cooldownTicks" : 40,
+    "range" : 20.0,
+    "cost" : {
+      "type" : "NONE",
+      "amount" : 20.0,
+      "itemKey" : ""
+    }
+  },
+  "visual" : {
+    "type" : "DISPLAY_ENTITY",
+    "attach" : "CASTER",
+    "offset" : {
+      "x" : 0.0,
+      "y" : 0.0,
+      "z" : 0.0
+    },
+    "durationTicks" : 20,
+    "soundKey" : "minecraft:block.glass.break",
+    "soundVolume" : 1.0,
+    "soundPitch" : 0.8,
+    "displayKind" : "ITEM",
+    "item" : "minecraft:prismarine_crystals",
+    "block" : "minecraft:magma_block",
+    "text" : "",
+    "customModelData" : 0,
+    "billboard" : "CENTER",
+    "blockLight" : 15,
+    "skyLight" : 15,
+    "glowing" : true,
+    "glowColor" : "#7fd4ff",
+    "baseTransform" : {
+      "translation" : {
+        "x" : 0.0,
+        "y" : 0.0,
+        "z" : 0.0
+      },
+      "scale" : {
+        "x" : 0.4,
+        "y" : 0.4,
+        "z" : 0.4
+      },
+      "leftRotation" : {
+        "x" : 0.0,
+        "y" : 0.0,
+        "z" : 0.0
+      },
+      "rightRotation" : {
+        "x" : 0.0,
+        "y" : 0.0,
+        "z" : 0.0
+      }
+    },
+    "keyframes" : [ {
+      "atTick" : 0,
+      "interpolationDurationTicks" : 18,
+      "transform" : {
+        "translation" : {
+          "x" : 0.0,
+          "y" : 0.0,
+          "z" : 0.0
+        },
+        "scale" : {
+          "x" : 2.6,
+          "y" : 2.6,
+          "z" : 2.6
+        },
+        "leftRotation" : {
+          "x" : 0.0,
+          "y" : 0.0,
+          "z" : 0.0
+        },
+        "rightRotation" : {
+          "x" : 0.0,
+          "y" : 0.0,
+          "z" : 0.0
+        }
+      }
+    } ]
+  },
+  "damagePoints" : [ {
+    "id" : "19b8a270",
+    "label" : "Burst",
+    "origin" : "CASTER",
+    "offset" : {
+      "x" : 0.0,
+      "y" : 0.0,
+      "z" : 0.0
+    },
+    "shape" : {
+      "type" : "SPHERE",
+      "radius" : 5.0,
+      "halfExtents" : {
+        "x" : 2.0,
+        "y" : 2.0,
+        "z" : 2.0
+      },
+      "angle" : 45.0,
+      "length" : 5.0
+    },
+    "damage" : 4.0,
+    "delayTicks" : 0,
+    "repeatCount" : 1,
+    "repeatIntervalTicks" : 0,
+    "targetFilter" : "NOT_CASTER",
+    "knockback" : 0.6,
+    "ignoreInvulnerability" : false,
+    "potionEffects" : [ {
+      "type" : "minecraft:slowness",
+      "amplifier" : 2,
+      "durationTicks" : 80
+    } ]
+  } ]
+}

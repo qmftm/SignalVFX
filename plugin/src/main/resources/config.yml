@@ -1,0 +1,3 @@
+# SignalVFX configuration.
+# Skills are loaded from plugins/SignalVFX/skills/*.json (authored in the editor).
+# Reload at runtime with: /svfx reload

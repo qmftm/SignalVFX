@@ -1,0 +1,16 @@
+name: SignalVFX
+version: 0.1.0
+main: com.signalvfx.plugin.SignalVfxPlugin
+api-version: '1.21'
+author: SignalVFX
+description: Loads editor-authored skills and executes their VFX and damage on the server.
+softdepend: [BetterModel]
+commands:
+  svfx:
+    description: SignalVFX skill control.
+    usage: /svfx <reload|list|cast> [skill] [player]
+    permission: signalvfx.admin
+permissions:
+  signalvfx.admin:
+    description: Manage and cast SignalVFX skills.
+    default: op
