@@ -4,6 +4,7 @@ import com.signalvfx.editor.bbmodel.BbGeometry;
 import com.signalvfx.model.DamagePoint;
 import com.signalvfx.model.Shape;
 import com.signalvfx.model.Skill;
+import com.signalvfx.model.Vec3;
 import javafx.animation.AnimationTimer;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
@@ -92,7 +93,9 @@ final class Preview3DPane extends BorderPane {
 
     private final Group modelGroup = new Group();
     private final Group damageGroup = new Group();
-    private final Group world = new Group(modelGroup, damageGroup);
+    /** Invisible horizontal plane used to ray-cast damage-point drags onto the X/Z plane. */
+    private final Box dragPlane = new Box(4000, 0.02, 4000);
+    private final Group world = new Group(modelGroup, damageGroup, dragPlane);
     private final Group pivot = new Group(world);
 
     private final Rotate rotateX = new Rotate(-20, Rotate.X_AXIS);
@@ -120,6 +123,7 @@ final class Preview3DPane extends BorderPane {
     private long lastNanos;
     private DamagePoint draggingMarker;
     private boolean scrubbing;
+    private DamagePoint draggingPoint3D;
 
     private final AnimationTimer timer = new AnimationTimer() {
         @Override
@@ -149,6 +153,11 @@ final class Preview3DPane extends BorderPane {
         world.getTransforms().add(new Scale(1, -1, 1)); // Y-up
         modelGroup.getTransforms().add(new Scale(1 / UNITS_PER_BLOCK, 1 / UNITS_PER_BLOCK, 1 / UNITS_PER_BLOCK));
         pivot.getTransforms().addAll(rotateY, rotateX);
+
+        // The drag plane shares `world` space with damageGroup, so a ray hit on it
+        // maps directly to a point offset. Transparent + not pickable unless dragging.
+        dragPlane.setMaterial(new PhongMaterial(Color.TRANSPARENT));
+        dragPlane.setMouseTransparent(true);
 
         Group sceneRoot = new Group(pivot, buildLights(), buildAxes());
         subScene = new SubScene(sceneRoot, 600, 460, true, SceneAntialiasing.BALANCED);
@@ -235,6 +244,9 @@ final class Preview3DPane extends BorderPane {
     }
 
     void refreshDamage() {
+        if (draggingPoint3D != null) {
+            return; // don't rebuild nodes mid-drag or the drag gesture breaks
+        }
         damageGroup.getChildren().clear();
         if (skill == null) {
             return;
@@ -245,10 +257,9 @@ final class Preview3DPane extends BorderPane {
             holder.setTranslateY(dp.getOffset().getY());
             holder.setTranslateZ(dp.getOffset().getZ());
             addVolume(holder, dp, dp == selectedPoint);
-            holder.setOnMouseClicked(e -> {
-                pick(dp);
-                e.consume();
-            });
+            holder.setOnMousePressed(e -> beginDrag(dp, holder, e));
+            holder.setOnMouseDragged(e -> dragPoint(dp, holder, e));
+            holder.setOnMouseReleased(e -> endDrag(dp, holder, e));
             damageGroup.getChildren().add(holder);
         }
         redrawTimeline();
@@ -318,6 +329,51 @@ final class Preview3DPane extends BorderPane {
         if (onPointPicked != null) {
             onPointPicked.accept(dp);
         }
+    }
+
+    // ---- 3D drag-to-move ----------------------------------------------
+
+    private void beginDrag(DamagePoint dp, Group holder, MouseEvent e) {
+        // Set the drag flag first so pick()'s refreshDamage() is suppressed and this
+        // holder node stays alive for the rest of the drag gesture.
+        draggingPoint3D = dp;
+        pick(dp);
+        dragPlane.setTranslateY(dp.getOffset().getY());
+        dragPlane.setMouseTransparent(false);
+        e.consume();
+    }
+
+    private void dragPoint(DamagePoint dp, Group holder, MouseEvent e) {
+        if (draggingPoint3D != dp) {
+            return;
+        }
+        holder.setMouseTransparent(true); // let the ray reach the drag plane
+        var pr = e.getPickResult();
+        if (pr != null && pr.getIntersectedNode() == dragPlane) {
+            javafx.geometry.Point3D p = pr.getIntersectedPoint();
+            double nx = snap(p.getX());
+            double nz = snap(p.getZ());
+            dp.setOffset(new Vec3(nx, dp.getOffset().getY(), nz));
+            holder.setTranslateX(nx);
+            holder.setTranslateZ(nz);
+        }
+        e.consume();
+    }
+
+    private void endDrag(DamagePoint dp, Group holder, MouseEvent e) {
+        if (draggingPoint3D == dp) {
+            draggingPoint3D = null;
+            dragPlane.setMouseTransparent(true);
+            if (onEdit != null) {
+                onEdit.run();
+            }
+            refreshDamage();
+        }
+        e.consume();
+    }
+
+    private static double snap(double v) {
+        return Math.round(v * 4.0) / 4.0; // quarter-block, matching the 2D canvas
     }
 
     // ---- model ---------------------------------------------------------
@@ -635,6 +691,9 @@ final class Preview3DPane extends BorderPane {
             anchorRy = rotateY.getAngle();
         });
         subScene.setOnMouseDragged(e -> {
+            if (draggingPoint3D != null) {
+                return; // a damage point is being dragged; don't orbit
+            }
             rotateY.setAngle(anchorRy + (e.getSceneX() - anchorX) * 0.4);
             rotateX.setAngle(clamp(anchorRx - (e.getSceneY() - anchorY) * 0.4, -89, 89));
         });
