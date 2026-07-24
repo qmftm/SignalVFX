@@ -16,7 +16,8 @@ import com.signalvfx.model.Vec3;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = ResourcePackVisual.class, name = "RESOURCE_PACK"),
-        @JsonSubTypes.Type(value = DisplayEntityVisual.class, name = "DISPLAY_ENTITY")
+        @JsonSubTypes.Type(value = DisplayEntityVisual.class, name = "DISPLAY_ENTITY"),
+        @JsonSubTypes.Type(value = BetterModelVisual.class, name = "BETTER_MODEL")
 })
 public abstract class Visual {
 

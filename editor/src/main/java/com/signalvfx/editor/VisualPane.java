@@ -3,6 +3,7 @@ package com.signalvfx.editor;
 import com.signalvfx.model.Skill;
 import com.signalvfx.model.Vec3;
 import com.signalvfx.model.visual.Attach;
+import com.signalvfx.model.visual.BetterModelVisual;
 import com.signalvfx.model.visual.Billboard;
 import com.signalvfx.model.visual.DisplayEntityVisual;
 import com.signalvfx.model.visual.DisplayKind;
@@ -47,39 +48,54 @@ final class VisualPane extends ScrollPane {
         Visual visual = skill.getVisual();
 
         ToggleGroup group = new ToggleGroup();
+        RadioButton bm = new RadioButton("BetterModel");
         RadioButton rp = new RadioButton("Resource Pack");
         RadioButton de = new RadioButton("Display Entity");
+        bm.setToggleGroup(group);
         rp.setToggleGroup(group);
         de.setToggleGroup(group);
-        boolean isRp = visual instanceof ResourcePackVisual;
-        rp.setSelected(isRp);
-        de.setSelected(!isRp);
+        bm.setSelected(visual instanceof BetterModelVisual);
+        rp.setSelected(visual instanceof ResourcePackVisual);
+        de.setSelected(visual instanceof DisplayEntityVisual);
 
-        rp.setOnAction(e -> switchTo(true));
-        de.setOnAction(e -> switchTo(false));
+        bm.setOnAction(e -> switchTo(VisualKind.BETTER_MODEL));
+        rp.setOnAction(e -> switchTo(VisualKind.RESOURCE_PACK));
+        de.setOnAction(e -> switchTo(VisualKind.DISPLAY_ENTITY));
 
         Label kind = new Label("Visual kind:");
         kind.setStyle("-fx-font-weight: bold;");
-        HBox toggle = new HBox(12, kind, rp, de);
+        HBox toggle = new HBox(12, kind, bm, rp, de);
         toggle.setPadding(new Insets(0, 0, 6, 0));
         root.getChildren().add(toggle);
 
         root.getChildren().add(commonForm(visual));
 
-        if (visual instanceof ResourcePackVisual v) {
+        if (visual instanceof BetterModelVisual v) {
+            root.getChildren().add(betterModelForm(v));
+        } else if (visual instanceof ResourcePackVisual v) {
             root.getChildren().add(resourcePackForm(v));
         } else if (visual instanceof DisplayEntityVisual v) {
             root.getChildren().add(displayForm(v));
         }
     }
 
-    private void switchTo(boolean toResourcePack) {
+    private enum VisualKind {
+        BETTER_MODEL, RESOURCE_PACK, DISPLAY_ENTITY
+    }
+
+    private void switchTo(VisualKind target) {
         Visual current = skill.getVisual();
-        boolean currentIsRp = current instanceof ResourcePackVisual;
-        if (toResourcePack == currentIsRp) {
+        VisualKind currentKind = current instanceof BetterModelVisual ? VisualKind.BETTER_MODEL
+                : current instanceof ResourcePackVisual ? VisualKind.RESOURCE_PACK
+                : VisualKind.DISPLAY_ENTITY;
+        if (target == currentKind) {
             return;
         }
-        Visual next = toResourcePack ? new ResourcePackVisual() : new DisplayEntityVisual();
+        Visual next = switch (target) {
+            case BETTER_MODEL -> new BetterModelVisual();
+            case RESOURCE_PACK -> new ResourcePackVisual();
+            case DISPLAY_ENTITY -> new DisplayEntityVisual();
+        };
         // Carry over the shared fields so switching kinds is non-destructive.
         next.setAttach(current.getAttach());
         next.setOffset(current.getOffset());
@@ -120,6 +136,42 @@ final class VisualPane extends ScrollPane {
             v.setSoundPitch((float) val);
             onChange.run();
         }));
+        return grid;
+    }
+
+    private GridPane betterModelForm(BetterModelVisual v) {
+        GridPane grid = Fx.form();
+        int r = 0;
+        grid.add(header("BetterModel (server-side BlockBench model + animation)"), 0, r++, 2, 1);
+        Fx.row(grid, r++, "Model id", Fx.text(v.getModelId(), val -> {
+            v.setModelId(val);
+            onChange.run();
+        }));
+        Fx.row(grid, r++, "Animation", Fx.text(v.getAnimation(), val -> {
+            v.setAnimation(val);
+            onChange.run();
+        }));
+        Fx.row(grid, r++, "Animation speed", Fx.doubleField(v.getAnimationSpeed(), val -> {
+            v.setAnimationSpeed(val);
+            onChange.run();
+        }));
+        Fx.row(grid, r++, "Loop", Fx.check("", v.isLoop(), val -> {
+            v.setLoop(val);
+            onChange.run();
+        }));
+        Fx.row(grid, r++, "Scale", Fx.doubleField(v.getScale(), val -> {
+            v.setScale(val);
+            onChange.run();
+        }));
+        Fx.row(grid, r++, "Use model hit-box", Fx.check("", v.isUseModelHitbox(), val -> {
+            v.setUseModelHitbox(val);
+            onChange.run();
+        }));
+        Label note = new Label(
+                "Requires the BetterModel plugin (soft-depend). Model & animation are\n"
+                        + "authored in BlockBench; SignalVFX only references them by name.");
+        note.setStyle("-fx-text-fill: #888; -fx-padding: 6 0 0 0;");
+        grid.add(note, 0, r, 2, 1);
         return grid;
     }
 

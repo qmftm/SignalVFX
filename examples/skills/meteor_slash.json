@@ -1,0 +1,96 @@
+{
+  "schemaVersion" : 1,
+  "id" : "meteor_slash",
+  "name" : "Meteor Slash",
+  "description" : "Plays a BetterModel greatsword slash animation in front of the caster, then deals a two-stage arc of damage.",
+  "author" : "SignalVFX",
+  "icon" : "minecraft:netherite_sword",
+  "cast" : {
+    "type" : "INSTANT",
+    "targeting" : "SELF",
+    "castTimeTicks" : 0,
+    "cooldownTicks" : 80,
+    "range" : 20.0,
+    "cost" : {
+      "type" : "MANA",
+      "amount" : 30.0,
+      "itemKey" : ""
+    }
+  },
+  "visual" : {
+    "type" : "BETTER_MODEL",
+    "attach" : "CASTER",
+    "offset" : {
+      "x" : 0.0,
+      "y" : 0.0,
+      "z" : 0.0
+    },
+    "durationTicks" : 30,
+    "soundKey" : "minecraft:entity.player.attack.sweep",
+    "soundVolume" : 1.0,
+    "soundPitch" : 0.9,
+    "modelId" : "meteor_slash",
+    "animation" : "swing",
+    "animationSpeed" : 1.2,
+    "loop" : false,
+    "scale" : 1.0,
+    "useModelHitbox" : false
+  },
+  "damagePoints" : [ {
+    "id" : "87317394",
+    "label" : "Sweep",
+    "origin" : "CAST_DIRECTION",
+    "offset" : {
+      "x" : 0.0,
+      "y" : 0.0,
+      "z" : 2.0
+    },
+    "shape" : {
+      "type" : "CONE",
+      "radius" : 3.0,
+      "halfExtents" : {
+        "x" : 2.0,
+        "y" : 2.0,
+        "z" : 2.0
+      },
+      "angle" : 70.0,
+      "length" : 4.5
+    },
+    "damage" : 8.0,
+    "delayTicks" : 4,
+    "repeatCount" : 1,
+    "repeatIntervalTicks" : 0,
+    "targetFilter" : "NOT_CASTER",
+    "knockback" : 0.5,
+    "ignoreInvulnerability" : false,
+    "potionEffects" : [ ]
+  }, {
+    "id" : "03d77acf",
+    "label" : "Impact",
+    "origin" : "CAST_DIRECTION",
+    "offset" : {
+      "x" : 0.0,
+      "y" : 0.0,
+      "z" : 4.0
+    },
+    "shape" : {
+      "type" : "SPHERE",
+      "radius" : 2.0,
+      "halfExtents" : {
+        "x" : 2.0,
+        "y" : 2.0,
+        "z" : 2.0
+      },
+      "angle" : 45.0,
+      "length" : 5.0
+    },
+    "damage" : 6.0,
+    "delayTicks" : 10,
+    "repeatCount" : 1,
+    "repeatIntervalTicks" : 0,
+    "targetFilter" : "NOT_CASTER",
+    "knockback" : 1.2,
+    "ignoreInvulnerability" : false,
+    "potionEffects" : [ ]
+  } ]
+}
